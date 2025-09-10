@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>宇宙尽头是夸夸机</title>
+<style>
+body {
+  font-family: "Comic Sans MS","Microsoft Yahei",sans-serif;
+  margin:0;padding:0;overflow-x:hidden;
+  background: linear-gradient(270deg,#ff9a9e,#fad0c4,#fbc2eb,#a6c1ee);
+  background-size:800% 800%;
+  animation: gradientBG 15s ease infinite;
+  min-height:100vh;
+}
+@keyframes gradientBG {0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.container {max-width:500px;margin:0 auto;padding:20px;text-align:center;position:relative;z-index:2;}
+.card {background:rgba(255,255,255,0.9);border-radius:20px;padding:24px;margin-top:20px;box-shadow:0 8px 20px rgba(0,0,0,0.15);}
+h1 {font-size:22px;margin-bottom:10px;color:#333;}
+.intro {font-size:16px;color:#555;margin-bottom:10px;line-height:1.5;}
+.options {display:flex;flex-direction:column;gap:14px;margin-top:20px;}
+button.option, .copy-btn, .reward-btn, .retry-btn {
+  padding:14px;border:none;border-radius:12px;font-size:16px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;width:80%;max-width:300px;margin:10px auto;
+}
+button.option {background:#fff5f0;}
+button.option:hover {background:#ffd6ba;transform: scale(1.05) rotate(-1deg);}
+.copy-btn, .reward-btn, .retry-btn {background:linear-gradient(45deg,#ff9a8b,#ff6a88,#ff99ac);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.2);}
+.copy-btn:hover, .reward-btn:hover, .retry-btn:hover {transform: scale(1.08);}
+.reward-btn {animation: pulse 1s infinite;}
+#result {font-size:18px;line-height:1.8;margin:20px 0;color:#222;text-align:left;white-space:pre-wrap;word-break:break-word;}
+.hidden {display:none;}
+@keyframes pulse {0%{transform:scale(1);}50%{transform:scale(1.15);}100%{transform:scale(1);}}
+#musicBtn {position:fixed;top:15px;right:15px;width:50px;height:50px;border-radius:50%;border:none;background:linear-gradient(45deg,#ff9a8b,#ff6a88,#ff99ac);color:#fff;font-size:24px;cursor:pointer;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.3);}
+.milk-tea-img {width:150px;margin-top:10px;}
+</style>
+</head>
+<body>
+
+<audio id="bgMusic" loop>
+  <source src="background.mp3" type="audio/mpeg">
+</audio>
+<button id="musicBtn">▶️</button>
+
+<div class="container">
+  <div id="quiz" class="card">
+    <div class="intro">欢迎来到宇宙尽头的夸夸机！回答几个小问题，看看今天的你有多闪亮✨</div>
+    <h1 id="question">题目加载中...</h1>
+    <div class="options" id="options"></div>
+  </div>
+
+  <div id="resultCard" class="card hidden">
+    <h1>✨ 你的宇宙级废话文学 ✨</h1>
+    <div id="result"></div>
+    <button class="copy-btn" onclick="copyResult()">复制给朋友</button>
+    <button class="copy-btn" onclick="generateImage()">生成签名图</button>
+    <button class="reward-btn" onclick="showRewardCard()">领取今日加糖🍹</button>
+    <button class="retry-btn" onclick="retryQuiz()">再答一次</button>
+    <canvas id="shareCanvas" width="400" height="500" class="hidden"></canvas>
+  </div>
+
+  <div id="rewardCard" class="card hidden">
+    <h1>🍵 没有下午茶的一天，也要犒劳自己！</h1>
+    <p>点击下面按钮，接收你的今日加糖奖励吧~</p>
+    <button class="reward-btn" onclick="showMilkTea()">接收今日加糖</button>
+    <button class="retry-btn" onclick="retryQuiz()">再答一次</button>
+    <div id="milkTeaContainer" style="margin-top:20px;"></div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+const QUESTIONS=[
+  {q:"如果你是一种动物，你会是？",options:[{text:"咸鱼",phrase:"像咸鱼一样瘫着也闪闪发光"},{text:"鸵鸟",phrase:"把头埋进沙子也超可爱"},{text:"仓鼠",phrase:"鼓着腮帮子依然努力存粮"}]},
+  {q:"你最擅长的超能力是？",options:[{text:"一觉睡到中午",phrase:"能把床当成充电宝"},{text:"秒回外卖小哥",phrase:"效率堪比5G"},{text:"假装很忙",phrase:"演技封神级别"}]},
+  {q:"如果生活是一档综艺，你会是？",options:[{text:"吐槽担当",phrase:"嘴炮输出666"},{text:"背景板",phrase:"低调到闪闪发光"},{text:"乱入嘉宾",phrase:"随时整活的高手"}]},
+  {q:"当倒霉来临时，你会？",options:[{text:"假装自己是NPC",phrase:"被打也能继续营业"},{text:"拿出小本本记仇",phrase:"心眼比针还细但超真实"},{text:"装傻卖萌",phrase:"可爱到让倒霉自闭"}]},
+  {q:"你的隐藏身份其实是？",options:[{text:"表情包供应商",phrase:"自带100G表情存货"},{text:"朋友圈点赞机器",phrase:"专治冷清气氛"},{text:"摸鱼天才",phrase:"摸鱼也能开创事业"}]}
+];
+let current=0;
+let selectedPhrases=[];
+let musicStarted=false;
+const bgMusic=document.getElementById('bgMusic');
+const musicBtn=document.getElementById('musicBtn');
+
+function showQuestion(){
+  const qObj=QUESTIONS[current];
+  document.getElementById('question').innerText=qObj.q;
+  const optsDiv=document.getElementById('options');
+  optsDiv.innerHTML='';
+  qObj.options.forEach((op)=>{
+    const btn=document.createElement('button');
+    btn.className='option';
+    btn.innerText=op.text;
+    btn.onclick=()=>selectOption(op.phrase);
+    optsDiv.appendChild(btn);
+  });
+}
+
+function selectOption(phrase){
+  if(!musicStarted){bgMusic.play().catch(()=>{});musicStarted=true;musicBtn.innerText='🔊';}
+  selectedPhrases.push(phrase);
+  current++;
+  if(current<QUESTIONS.length){showQuestion();}else{showResult();}
+}
+
+function showResult(){
+  document.getElementById('quiz').classList.add('hidden');
+  const resultText=`你${selectedPhrases[0]}；还${selectedPhrases[1]}；简直${selectedPhrases[2]}。\n即便${selectedPhrases[3]}，依然${selectedPhrases[4]}！\n\n所以请自豪一点，你就是宇宙限定款！`;
+  document.getElementById('result').innerText=resultText;
+  document.getElementById('resultCard').classList.remove('hidden');
+}
+
+function retryQuiz(){
+  current=0;
+  selectedPhrases=[];
+  document.getElementById('resultCard').classList.add('hidden');
+  document.getElementById('rewardCard').classList.add('hidden');
+  document.getElementById('quiz').classList.remove('hidden');
+  window.scrollTo({top:0,behavior:'smooth'});
+  musicStarted=false;
+  showQuestion();
+}
+
+musicBtn.onclick=function(){
+  if(bgMusic.paused){
+    bgMusic.play().catch(()=>{});
+    musicBtn.innerText='🔊';musicStarted=true;
+  }else{
+    bgMusic.pause();musicBtn.innerText='🔇';
+  }
+};
+
+function copyResult(){
+  navigator.clipboard.writeText(document.getElementById('result').innerText)
+  .then(()=>{alert('已复制到剪贴板');});
+}
+
+function generateImage(){
+  const canvas=document.getElementById('shareCanvas');
+  canvas.classList.remove('hidden');
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff8f0';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#333';
+  ctx.font='26px Microsoft Yahei';
+  ctx.fillText('Bella 今日上上签',50,40);
+  const text=document.getElementById('result').innerText;
+  wrapText(ctx,text,20,80,360,26);
+  const link=document.createElement('a');
+  link.download='Bella签.png';
+  link.href=canvas.toDataURL();
+  link.click();
+}
+
+function wrapText(ctx,text,x,y,maxWidth,lineHeight){
+  const words=text.split('');
+  let line='';
+  for(let n=0;n<words.length;n++){
+    const testLine=line+words[n];
+    const testWidth=ctx.measureText(testLine).width;
+    if(testWidth>maxWidth && n>0){
+      ctx.fillText(line,x,y);
+      line=words[n];
+      y+=lineHeight;
+    }else{
+      line=testLine;
+    }
+  }
+  ctx.fillText(line,x,y);
+}
+
+function showRewardCard(){
+  document.getElementById('resultCard').classList.add('hidden');
+  document.getElementById('rewardCard').classList.remove('hidden');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function showMilkTea(){
+  document.getElementById('milkTeaContainer').innerHTML='<img src="milktea.png" class="milk-tea-img">';
+}
+
+// 挂载到全局，保证按钮可用
+window.retryQuiz = retryQuiz;
+window.copyResult = copyResult;
+window.generateImage = generateImage;
+window.showRewardCard = showRewardCard;
+window.showMilkTea = showMilkTea;
+
+// 初始化
+showQuestion();
+});
+</script>
+
+</body>
+</html>
